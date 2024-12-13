@@ -37,8 +37,8 @@ export default {
           return;
         }
 
-        const data = await response.text(); // Đọc phản hồi dưới dạng chuỗi
-        this.greetingMessage = data; // Gán chuỗi phản hồi vào greetingMessage
+        const data = await response.text();
+        this.greetingMessage = data;
       } catch (err) {
         this.error = "An error occurred: " + err.message;
       }
