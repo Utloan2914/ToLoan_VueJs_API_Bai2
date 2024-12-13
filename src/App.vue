@@ -1,16 +1,17 @@
 <template>
   <div id="app">
-    <Dictionary />
+    <Greeting />
   </div>
 </template>
 
 <script>
-import Dictionary from './components/Dictionary.vue'
-
+import Greeting from './components/Greeting.vue'
 export default {
   name: 'App',
   components: {
-    Dictionary
+    Greeting
   }
 }
 </script>
+
+
