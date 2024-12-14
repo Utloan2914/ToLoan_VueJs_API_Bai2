@@ -1,3 +1,4 @@
+
 <template>
   <div class="container">
     <h1>Danh Sách Nhân Viên</h1>
@@ -19,7 +20,7 @@
         <td>{{ employee.name }}</td>
         <td>{{ employee.birthDate }}</td>
         <td>{{ employee.gender }}</td>
-        <td>{{ employee.salary.toLocaleString() }}₫</td>
+        <td>{{ formatSalary(employee.salary) }}₫</td>
         <td>{{ employee.phone }}</td>
         <td>
           <button @click="openEditForm(employee)">Cập nhật</button>
@@ -28,6 +29,7 @@
       </tr>
       </tbody>
     </table>
+
     <button @click="openAddForm">Thêm Mới</button>
 
     <div v-if="formVisible" class="form-container">
@@ -70,93 +72,100 @@
 </template>
 
 <script>
-export default {
-  data() {
-    return {
-      employees: [],
-      formVisible: false,
-      isEditing: false,
-      formData: {
-        id: null,
-        name: "",
-        birthDate: "",
-        gender: "",
-        salary: 0,
-        phone: "",
-      },
-    };
-  },
-  methods: {
-    async fetchEmployees() {
-      try {
-        const response = await fetch("http://localhost:8080/employees");
-        if (!response.ok) throw new Error("Lỗi khi tải danh sách nhân viên");
-        this.employees = await response.json();
-      } catch (error) {
-        console.error(error.message);
-      }
-    },
-    openAddForm() {
-      this.isEditing = false;
-      this.formData = {
-        id: null,
-        name: "",
-        birthDate: "",
-        gender: "",
-        salary: 0,
-        phone: "",
+  export default {
+    data() {
+      return {
+        employees: [],
+        formVisible: false,
+        isEditing: false,
+        formData: {
+          id: null,
+          name: "",
+          birthDate: "",
+          gender: "",
+          salary: 0,
+          phone: "",
+        },
       };
-      this.formVisible = true;
     },
-    openEditForm(employee) {
-      this.isEditing = true;
-      this.formData = { ...employee };
-      this.formVisible = true;
-    },
-    closeForm() {
-      this.formVisible = false;
-    },
-    async submitForm() {
-      try {
-        const url = this.isEditing
-            ? `http://localhost:8080/employees/${this.formData.id}`
-            : "http://localhost:8080/employees";
-        const method = this.isEditing ? "PUT" : "POST";
-
-        const response = await fetch(url, {
-          method,
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(this.formData),
-        });
-
-        if (!response.ok) {
-          throw new Error(
-              this.isEditing ? "Lỗi khi cập nhật nhân viên" : "Lỗi khi thêm nhân viên"
-          );
+    methods: {
+      async fetchEmployees() {
+        try {
+          const response = await fetch("http://localhost:8080/employees");
+          const data = await response.json();
+          if (data.success) {
+            this.employees = data.data;
+          } else {
+            throw new Error("Lỗi khi tải danh sách nhân viên");
+          }
+        } catch (error) {
+          console.error(error.message);
         }
+      },
+      formatSalary(salary) {
+        return salary.toLocaleString();
+      },
+      openAddForm() {
+        this.isEditing = false;
+        this.formData = {
+          id: null,
+          name: "",
+          birthDate: "",
+          gender: "",
+          salary: 0,
+          phone: "",
+        };
+        this.formVisible = true;
+      },
+      openEditForm(employee) {
+        this.isEditing = true;
+        this.formData = { ...employee };
+        this.formVisible = true;
+      },
+      closeForm() {
+        this.formVisible = false;
+      },
+      async submitForm() {
+        try {
+          const url = this.isEditing
+              ? `http://localhost:8080/employees/${this.formData.id}`
+              : "http://localhost:8080/employees";
+          const method = this.isEditing ? "PUT" : "POST";
 
-        this.fetchEmployees();
-        this.closeForm();
-      } catch (error) {
-        console.error(error.message);
-      }
+          const response = await fetch(url, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(this.formData),
+          });
+
+          if (!response.ok) {
+            throw new Error(
+                this.isEditing ? "Lỗi khi cập nhật nhân viên" : "Lỗi khi thêm nhân viên"
+            );
+          }
+
+          this.fetchEmployees();
+          this.closeForm();
+        } catch (error) {
+          console.error(error.message);
+        }
+      },
+      async deleteEmployee(id) {
+        try {
+          const response = await fetch(`http://localhost:8080/employees/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) throw new Error("Lỗi khi xóa nhân viên");
+          this.employees = this.employees.filter((emp) => emp.id !== id);
+        } catch (error) {
+          console.error(error.message);
+        }
+      },
     },
-    async deleteEmployee(id) {
-      try {
-        const response = await fetch(`http://localhost:8080/employees/${id}`, {
-          method: "DELETE",
-        });
-        if (!response.ok) throw new Error("Lỗi khi xóa nhân viên");
-        this.employees = this.employees.filter((emp) => emp.id !== id);
-      } catch (error) {
-        console.error(error.message);
-      }
+    mounted() {
+      this.fetchEmployees();
     },
-  },
-  mounted() {
-    this.fetchEmployees();
-  },
-};
+  };
 </script>
 
 <style>
