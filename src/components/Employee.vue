@@ -4,8 +4,8 @@
 
     <div class="search-container">
       <input v-model="search.name" placeholder="Tìm kiếm theo tên" />
-      <input v-model="search.birthDateFrom" type="date" placeholder="Ngày sinh từ" />
-      <input v-model="search.birthDateTo" type="date" placeholder="Ngày sinh đến" />
+      <input v-model="search.birthDateFrom" type="date" />
+      <input v-model="search.birthDateTo" type="date" />
       <select v-model="search.gender">
         <option value="">Tất cả</option>
         <option value="Nam">Nam</option>
@@ -35,7 +35,7 @@
         <td>{{ employee.name }}</td>
         <td>{{ employee.birthDate }}</td>
         <td>{{ employee.gender }}</td>
-        <td>{{ formatSalary(employee.salary) }}₫</td>
+        <td>{{ employee.salary}}₫</td>
         <td>{{ employee.phone }}</td>
         <td>{{ employee.department }}</td>
         <td>
@@ -47,6 +47,24 @@
     </table>
 
     <button @click="openAddForm">Thêm Mới</button>
+    <div class="pagination">
+      <button :disabled="currentPage === 0" @click="goToPage(currentPage - 1)">
+        Trước
+      </button>
+
+      <button
+          v-for="page in totalPages"
+          :key="page"
+          @click="goToPage(page - 1)"
+          :class="{ active: page - 1 === currentPage }"
+      >
+        {{ page }}
+      </button>
+
+      <button :disabled="currentPage === totalPages - 1" @click="goToPage(currentPage + 1)">
+        Sau
+      </button>
+    </div>
 
     <div v-if="formVisible" class="form-container">
       <h2>{{ isEditing ? "Cập nhật Nhân Viên" : "Thêm Nhân Viên" }}</h2>
@@ -100,6 +118,7 @@ export default {
   data() {
     return {
       employees: [],
+      filteredEmployees: [],
       formVisible: false,
       isEditing: false,
       formData: {
@@ -119,39 +138,68 @@ export default {
         salary: null,
         phone: "",
       },
+      currentPage: 0,
+      totalPages: 1,
     };
   },
-  computed: {
-    filteredEmployees() {
-      return this.employees.filter(employee => {
-        const matchesName = employee.name.toLowerCase().includes(this.search.name.toLowerCase());
-        const matchesBirthDateFrom = this.search.birthDateFrom ? new Date(employee.birthDate) >= new Date(this.search.birthDateFrom) : true;
-        const matchesBirthDateTo = this.search.birthDateTo ? new Date(employee.birthDate) <= new Date(this.search.birthDateTo) : true;
-        const matchesGender = this.search.gender ? employee.gender === this.search.gender : true;
-        const matchesSalary = this.search.salary ? employee.salary >= this.search.salary : true;
-        const matchesPhone = this.search.phone ? employee.phone.includes(this.search.phone) : true;
-
-        return matchesName && matchesBirthDateFrom && matchesBirthDateTo && matchesGender && matchesSalary && matchesPhone;
-      });
-    },
-  },
   methods: {
-    async fetchEmployees() {
+    async fetchEmployees(page = 0, size = 5) {
       try {
-        const response = await fetch("http://localhost:8080/employees");
+        const response = await fetch('http://localhost:8080/employees');
         const data = await response.json();
-        if (data.success) {
-          this.employees = data.data;
-        } else {
-          throw new Error("Lỗi khi tải danh sách nhân viên");
-        }
+        this.employees = data.data.content.map(item => ({
+          id: item.employee.id,
+          name: item.employee.name,
+          birthDate: item.employee.dob,
+          gender: item.employee.gender,
+          salary: item.employee.salary,
+          phone: item.employee.phone,
+          department: item.department.name,
+        }));
+        this.totalPages = data.data.totalPages;
+        this.currentPage = page;
+        this.filteredEmployees = this.employees;
+      } catch (error) {
+        console.error("Lỗi khi tải danh sách nhân viên:", error.message);
+      }
+    }
+    ,
+    async searchEmployees() {
+      try {
+        const params = new URLSearchParams({
+          name: this.search.name || '',
+          dobFrom: this.search.birthDateFrom ? this.search.birthDateFrom.toISOString().split('T')[0] : '',
+          dobTo: this.search.birthDateTo ? this.search.birthDateTo.toISOString().split('T')[0] : '',
+          gender: this.search.gender || '',
+          salaryRange: this.search.salary ? this.search.salary.toString() : '',
+          phone: this.search.phone || '',
+          departmentId: this.search.department || '',
+        }).toString();
+
+        const response = await fetch(`http://localhost:8080/employees/search?${params}`);
+        const data = await response.json();
+        this.employees = data.data.content.map(item => ({
+            id: item.employee.id,
+            name: item.employee.name,
+            birthDate: item.employee.dob,
+            gender: item.employee.gender,
+            salary: item.employee.salary,
+            phone: item.employee.phone,
+            department: item.department.name,
+          }));
+          this.filteredEmployees = this.employees;
+        this.currentPage = data.data.number;
+        this.totalPages = data.data.totalPages;
       } catch (error) {
         console.error(error.message);
       }
     },
-    formatSalary(salary) {
-      return salary.toLocaleString();
+    goToPage(page) {
+      if (page >= 0 && page < this.totalPages) {
+        this.fetchEmployees(page);
+      }
     },
+
     openAddForm() {
       this.isEditing = false;
       this.formData = {
@@ -167,7 +215,7 @@ export default {
     },
     openEditForm(employee) {
       this.isEditing = true;
-      this.formData = { ...employee };
+      this.formData = {...employee};
       this.formVisible = true;
     },
     closeForm() {
@@ -176,13 +224,13 @@ export default {
     async submitForm() {
       try {
         const url = this.isEditing
-            ? `http://localhost:8080/employees/${this.formData.id}`
-            : "http://localhost:8080/employees";
+            ? `http://localhost:8080/employees/update/${this.formData.id}`
+            : "http://localhost:8080/employees/add";
         const method = this.isEditing ? "PUT" : "POST";
 
         const response = await fetch(url, {
           method,
-          headers: { "Content-Type": "application/json" },
+          headers: {"Content-Type": "application/json"},
           body: JSON.stringify(this.formData),
         });
 
@@ -190,7 +238,7 @@ export default {
           throw new Error(this.isEditing ? "Lỗi khi cập nhật nhân viên" : "Lỗi khi thêm nhân viên");
         }
 
-        this.fetchEmployees();
+        await this.fetchEmployees();
         this.closeForm();
       } catch (error) {
         console.error(error.message);
@@ -198,17 +246,14 @@ export default {
     },
     async deleteEmployee(id) {
       try {
-        const response = await fetch(`http://localhost:8080/employees/${id}`, {
+        const response = await fetch(`http://localhost:8080/employees/delete/${id}`, {
           method: "DELETE",
         });
         if (!response.ok) throw new Error("Lỗi khi xóa nhân viên");
-        this.employees = this.employees.filter(emp => emp.id !== id);
+        this.fetchEmployees();
       } catch (error) {
         console.error(error.message);
       }
-    },
-    searchEmployees() {
-      console.log("Đang tìm kiếm với các tiêu chí:", this.search);
     },
   },
   mounted() {
@@ -232,6 +277,7 @@ h1 {
   text-align: center;
   color: #333;
 }
+
 .search-container {
   margin-bottom: 20px;
   display: flex;
@@ -298,6 +344,7 @@ button {
 button:hover {
   background-color: #1976D2;
 }
+
 .form-container {
   margin: 20px auto;
   padding: 30px;
@@ -312,8 +359,6 @@ button:hover {
   text-align: center;
   color: #333;
   margin-bottom: 20px;
-  font-size: 1.8rem;
-  font-weight: 600;
 }
 
 form div {
@@ -333,16 +378,6 @@ form select {
   padding: 12px;
   border: 1px solid #ccc;
   border-radius: 6px;
-  font-size: 1rem;
-  box-sizing: border-box;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-form input:focus,
-form select:focus {
-  border-color: #4caf50;
-  box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
-  outline: none;
 }
 
 form button {
@@ -353,29 +388,36 @@ form button {
   background-color: #4caf50;
   color: #fff;
   font-size: 1.1rem;
-  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
 form button:hover {
   background-color: #45a049;
-  transform: translateY(-2px);
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
 }
 
-form button:active {
-  background-color: #3e8e41;
-  transform: translateY(0);
+.pagination button {
+  margin: 0 5px;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  background-color: #f4f4f4;
+  color: #333;
+  cursor: pointer;
+  border-radius: 4px;
 }
 
-@media (max-width: 768px) {
-  .form-container {
-    padding: 20px;
-  }
+.pagination button.active {
+  background-color: #4caf50;
+  color: white;
+}
 
-  form button {
-    font-size: 1rem;
-  }
+.pagination button:disabled {
+  background-color: #ddd;
+  cursor: not-allowed;
 }
 
 </style>
